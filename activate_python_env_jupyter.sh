@@ -1,4 +1,4 @@
-
+## 
 export PYTHONPATH=${PYTHONPATH}:/DATA/IASI/INPUT/juan/SPECAT_2/ML_CHIMERE_AOD_correction/lib
 
 module load anaconda3-py/2020.11

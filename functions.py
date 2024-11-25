@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np 
 def grid_data(z, x, y, res):
     return np.mgrid[ z.min():z.max():1, x.min():x.max()+res:res, y.min():y.max()+res:res]
 

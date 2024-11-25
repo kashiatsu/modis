@@ -9,7 +9,7 @@
 #Update conda using 
 #conda update conda
 
-#Create env using
+#Create env using 
 module load anaconda3-py/2020.11
 
 conda create -n ml_chimere python=3.8

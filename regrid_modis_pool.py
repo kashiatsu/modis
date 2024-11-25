@@ -1,4 +1,4 @@
-## %matplotlib inline
+## %matplotlib inline 
 import matplotlib.pyplot as plt
 #import cartopy.crs as ccrs
 #from aeros5py import cartopyaxes
