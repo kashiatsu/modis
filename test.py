@@ -1078,7 +1078,7 @@ yaml.dump(
         "train_dates" : train_dates,
         "Daily_average_CHIMERE.raw_vs_MODIS":float(np.sum(log_reference.values)/len(valid_dates)),
         "Daily_average_testing_score":float(np.sum(log_prediction.values)/len(valid_dates)),
-        "train_cost_minutes":np.float(cost),
+        "train_cost_minutes":float(cost),
         "Daily_average_prediction_cost_minutes":float(np.sum(inference_cost)/60/len(valid_dates)),
         "figpath":figpath,
         "output_path":output_path,
@@ -1187,3 +1187,556 @@ plt.grid()
 #    plt.savefig(model)
 
 print("ここまでOK27")
+
+# relative bias
+#relative bias
+######## Choose the model : NN, XGB, RF or MLR ##########
+model_types = ["MLR", "NN", "RF", "XGB"]
+######################
+biases = {}
+biases["RAW"] = (DTest.aod_550.values- DTest.MODIS)/ DTest.MODIS
+
+
+for model_type in model_types :
+
+    figpath=f"./figures/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    
+    if model_type == "NN" :
+        model = tf.keras.models.load_model(f"{output_path}/{model_type}")
+    else :
+        model = pickle.load(open(f'{output_path}/{model_type}.pkl', 'rb'))
+ 
+    
+    x_test1, y_test1 = DTest.iloc[:,:-2].values, DTest.iloc[:,-1].values.reshape(-1,1)
+    print(model_type)
+    prediction = model.predict(x_test1)
+        
+    biases[model_type] = (prediction.flatten() - DTest.MODIS)/ DTest.MODIS
+
+#absolute bias
+######## Choose the model : NN, XGB, RF or MLR ##########
+model_types = ["MLR", "NN", "RF", "XGB"]
+######################
+biases = {}
+prediction = {}
+biases["RAW"] = DTest.aod_550.values- DTest.MODIS
+
+for model_type in model_types :
+    figpath=f"./figures/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    
+    if model_type == "NN" :
+        model = tf.keras.models.load_model(f"{output_path}/{model_type}")
+    else :
+        model = pickle.load(open(f'{output_path}/{model_type}.pkl', 'rb'))
+ 
+
+    prediction[model_type] = model.predict(DTest.iloc[:,:-2]).flatten()
+    biases[model_type] = prediction[model_type].flatten() - DTest.MODIS
+    
+# bias_shuffled = bias.sample(frac=1)
+# bootstrap(bias_shuffled.values.reshape(1,-1)[:,:18402], np.mean, confidence_level=0.9, random_state=seed)
+biases = pd.DataFrame(biases)
+prediction = pd.DataFrame(prediction)
+
+skew = scipy.stats.skew(biases)
+var = biases.var()
+np.round(var.values.T, 4)
+
+#  textstr = '\n'.join((
+#         "         $\gamma$         $\sigma{^2}$", 
+#         f'RAW {np.round(skew[0],2)},    {np.round(var[0], 2)}   ',
+#         f'MLR {np.round(skew[1],2)},     {np.round(var[1], 2)}',
+#         f"NN   {np.round(skew[2],2)},   {np.round(var[2], 2)}",
+#         f"RF    {np.round(skew[3],2)},   {np.round(var[3], 2)}",
+#         f"XGB {np.round(skew[4],2)},   {np.round(var[4], 2)}",
+
+#         ))
+
+fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5,3))
+for i in biases :
+    a = ax.hist(biases[i], histtype='step', density=True, stacked=True, bins=np.arange(-5.01,5.01,0.02), linewidth=2, label=i)
+
+# props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+# ax.text(0.05, 0.950, textstr, transform=ax.transAxes, verticalalignment='top', bbox=props)
+
+plt.legend()
+plt.xlim([-0.5, 0.5])
+plt.xticks(np.arange(-0.5, 0.5, 0.1))
+plt.grid()
+plt.xlabel("Bias")
+plt.ylabel("Occurrence")
+
+#plt.savefig("correction_bias.jpg")
+
+biases.describe()
+d = pd.concat([biases, DTest.MODIS], axis=1, names=['RAW', 'MLR','NN', 'RF', 'XGB', 'MODIS'])
+print("ここまでOK28")
+
+# bias vs CHIMERE
+fontsize=20
+
+colors = ["C0","C1", "C2", "C3", "C4"]
+xbin = np.arange(0,8,0.02)
+ybin = np.arange(-4,4,.02)
+
+X,Y = np.meshgrid(xbin, ybin)
+for i, model  in enumerate(biases.columns) :
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+
+    #ax = plt.sca(axes[i])
+    #plt.plot(np.zeros(8), c='k')
+    a = scipy.stats.binned_statistic_2d(DTest.aod_550, biases[model], biases[model], statistic="count", 
+                                        bins=[xbin, ybin])
+    print('done')
+
+    m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin=1, vmax=3000)
+    a,b = np.polyfit(DTest.aod_550, biases[model], 1)
+    textstr = '\n'.join((
+        
+        f"a = {np.round(a,2)}",
+        f"b = {np.round(b,2)}",
+        )
+    )
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+    plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+              verticalalignment='top', bbox=props, fontsize=fontsize-5)
+
+    plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+
+    axes.set_aspect('auto')
+    plt.xticks(np.arange(0, 8, 1))
+    plt.plot(np.arange(0,8), linewidth=.8, c='grey')
+    plt.plot(np.arange(0,8), -1*np.arange(0,8), linewidth=.8, c='grey')
+
+    plt.xlim([xbin.min(), xbin.max()])
+
+    plt.ylim(ybin.min(), ybin.max())
+    plt.ylabel(model  + ' bias' , fontsize=fontsize)
+
+    plt.yticks(np.arange(-4,4), fontsize=fontsize)
+    plt.xticks(fontsize=fontsize)
+    plt.grid()
+    plt.xlabel('CHIMERE AOD', fontsize=fontsize)
+    #plt.suptitle('Bias (AOD difference model-MODIS)')
+    plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+
+    figpath=f"./figures/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model}/"
+    if not os.path.exists(output_path) : os.mkdir(output_path)
+    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+    if not os.path.exists(output_path) : os.mkdir(output_path)
+    
+    plt.savefig(f'{output_path}/{model}_biases_vs_chim.png', dpi=100)
+    plt.close()
+
+print("ここまでOK29")
+# bias vs CHIMERE whole year
+
+d = dataset0.drop(['date'], axis=1)
+corr = d.corr()
+corr0 = corr.iloc[:,-1]
+corr1 = np.abs(corr0).sort_values(ascending=False)
+fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(20,4))
+plt.bar(corr1.index[71:], corr1.values[71:]) 
+
+#fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+#x = np.arange(0,8,0.02); y = np.arange(-4,4,.02)
+#X,Y = np.meshgrid(x,y)
+##ax = plt.sca(axes[i])
+##plt.plot(np.zeros(8), c='k')
+#a = scipy.stats.binned_statistic_2d(dataset0.values, RAW2, RAW2, statistic="count", 
+#                                    bins=[np.arange(0,8,0.02), np.arange(-4,4,.02)])
+#print('done')
+
+#m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin=1, vmax=3000)
+#a,b = np.polyfit(dataset0.aod_550, RAW2, 1)
+#textstr = '\n'.join((
+
+#    f"a = {np.round(a,2)}",
+#    f"b = {np.round(b,2)}",
+#    )
+#)
+#props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+#plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+#         verticalalignment='top', bbox=props, fontsize=fontsize-5)
+
+#plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+
+## cb = plt.colorbar(m)
+## cb.ax.tick_params(labelsize=fontsize)
+## cb.set_label(label='Occurrence', fontsize=fontsize-5)
+
+#axes.set_aspect('auto')
+#plt.xlim([0,8])
+#plt.xticks(np.arange(0, 8, 1))
+
+#plt.ylim(-4,4)
+#plt.ylabel( 'RAW bias' , fontsize=fontsize)
+
+#plt.yticks(np.arange(-4,4), fontsize=fontsize)
+#plt.xticks(fontsize=fontsize)
+#plt.grid()
+#plt.xlabel('CHIMERE AOD', fontsize=fontsize)
+##plt.suptitle('Bias (AOD difference model-MODIS)')
+#plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+##plt.savefig("raw_all_chimere.jpg")
+
+print("ここまでOK30")
+
+# bias vs MODIS
+fontsize=20
+
+colors = ["C0","C1", "C2", "C3", "C4"]
+xbin = np.arange(0,4,0.02)
+ybin = np.arange(-4,4,.02)
+
+X,Y = np.meshgrid(xbin, ybin)
+for i, model  in enumerate(prediction.keys()) :
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+
+    #ax = plt.sca(axes[i])
+    #plt.plot(np.zeros(8), c='k')
+    a = scipy.stats.binned_statistic_2d(DTest.MODIS, biases[model], biases[model], statistic="count", 
+                                        bins=[xbin, ybin])
+
+    print('done')
+
+    m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='cividis', vmin=1, vmax=3000)
+    a,b = np.polyfit(DTest.MODIS, prediction[model], 1)
+    textstr = '\n'.join((
+        
+        f"a = {np.round(a,2)}",
+        f"b = {np.round(b,2)}",
+        )
+    )
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+    plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+              verticalalignment='top', bbox=props, fontsize=fontsize-5)
+
+    plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+
+#     cb = plt.colorbar(m)
+#     cb.ax.tick_params(labelsize=fontsize)
+#     cb.set_label(label='Occurrence', fontsize=fontsize-5)
+    plt.plot(np.arange(0,8), linewidth=.8, c='grey')
+    plt.plot(np.arange(0,8), -1*np.arange(0,8), linewidth=.8, c='grey')
+
+    axes.set_aspect('auto')
+    plt.xticks(np.arange(0, 8, 1))
+    plt.xlim([xbin.min(), xbin.max()])
+
+    plt.ylim(ybin.min(), ybin.max())
+    plt.ylabel(model  + ' bias' , fontsize=fontsize)
+
+    plt.yticks(np.arange(-4,4), fontsize=fontsize)
+    plt.xticks(fontsize=fontsize)
+    plt.grid()
+    plt.xlabel('MODIS AOD', fontsize=fontsize)
+    #plt.suptitle('Bias (AOD difference model-MODIS)')
+    plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+    
+    figpath=f"./figures/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+     
+    plt.savefig(f'{output_path}/{model}_biases_vs_modis.png', dpi=100)
+    plt.close()
+    
+print("ここまでOK31")
+
+# predict vs MODIS
+fontsize=20
+
+colors = ["C0","C1", "C2", "C3", "C4"]
+xbin = np.arange(0,5,0.02)
+ybin = np.arange(-1,4,.02)
+
+X,Y = np.meshgrid(xbin, ybin)
+for i, model  in enumerate(prediction.keys()) :
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+
+    #ax = plt.sca(axes[i])
+    #plt.plot(np.zeros(8), c='k')
+    a = scipy.stats.binned_statistic_2d(DTest.MODIS, prediction[model],  prediction[model], statistic="count", 
+                                        bins=[xbin, ybin])
+
+    print('done')
+
+    m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='cividis', vmin=1, vmax=3000)
+    a,b = np.polyfit(DTest.MODIS, prediction[model], 1)
+    textstr = '\n'.join((
+
+        f"a = {np.round(a,2)}",
+        f"b = {np.round(b,2)}",
+        )
+    )
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+    plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+               verticalalignment='top', bbox=props, fontsize=fontsize-5)
+    plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+    plt.plot(np.arange(0,8), linewidth=.8, c='grey')
+
+#     cb = plt.colorbar(m)
+#     cb.ax.tick_params(labelsize=fontsize)
+#     cb.set_label(label='Occurrence', fontsize=fontsize-5)
+
+    axes.set_aspect('auto')
+    plt.xticks(np.arange(0, 8, 1))
+    plt.xlim([xbin.min(), xbin.max()])
+
+    plt.ylim(ybin.min(), ybin.max())
+    plt.ylabel(model , fontsize=fontsize)
+
+    plt.yticks(np.arange(-1,4), fontsize=fontsize)
+    plt.xticks(fontsize=fontsize)
+    plt.grid()
+    plt.xlabel('MODIS', fontsize=fontsize)
+    #plt.suptitle('Bias (AOD difference model-MODIS)')
+    plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+
+    figpath=f"./figures/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+    
+    plt.savefig(f'{output_path}/{model}_prediction_vs_modis.png', dpi=100)
+    plt.close()
+
+print("ここまでOK32")
+
+# CHIMERE vs MODIS
+fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+xbin = np.arange(0,5,0.02)
+ybin = np.arange(-5,12,.02)
+
+X,Y = np.meshgrid(xbin, ybin)
+
+#ax = plt.sca(axes[i])
+#plt.plot(np.zeros(8), c='k')
+a = scipy.stats.binned_statistic_2d( dataset0.MODIS, dataset0.aod_550, dataset0.aod_550, statistic="count", 
+                                        bins=[xbin, ybin])
+
+print('done')
+
+m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin=1, vmax=3000)
+a,b = np.polyfit(dataset0.MODIS, dataset0.aod_550, 1)
+textstr = '\n'.join((
+
+    f"a = {np.round(a,2)}",
+    f"b = {np.round(b,2)}",
+    )
+)
+props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+          verticalalignment='top', bbox=props, fontsize=fontsize-5)
+
+plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+
+cb = plt.colorbar(m)
+cb.ax.tick_params(labelsize=fontsize)
+cb.set_label(label='Occurrence', fontsize=fontsize-5)
+
+axes.set_aspect('auto')
+plt.xticks(np.arange(0, xbin.max(), 1))
+
+plt.xlim([xbin.min(), xbin.max()])
+
+plt.ylim(ybin.min(), ybin.max())
+plt.ylabel( 'CHIMERE' , fontsize=fontsize)
+
+plt.yticks(np.arange(ybin.min(),ybin.max()), fontsize=fontsize)
+plt.xticks(fontsize=fontsize)
+plt.grid()
+plt.xlabel('MODIS', fontsize=fontsize)
+#plt.suptitle('Bias (AOD difference model-MODIS)')
+plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+#plt.savefig("raw_all_chimere.jpg")
+
+fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4,4)) #, sharex=True, sharey=True)
+xbin = np.arange(0,5,0.02)
+ybin = np.arange(-5,12,.02)
+
+X,Y = np.meshgrid(xbin, ybin)
+
+#ax = plt.sca(axes[i])
+#plt.plot(np.zeros(8), c='k')
+pred = (dataset0.aod_550+0.2)/(1+0.79)
+a = scipy.stats.binned_statistic_2d( dataset0.MODIS, pred, pred, statistic="count", 
+                                        bins=[xbin, ybin])
+
+print('done')
+
+m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin=1, vmax=3000)
+a,b = np.polyfit(dataset0.MODIS, pred, 1)
+textstr = '\n'.join((
+
+    f"a = {np.round(a,2)}",
+    f"b = {np.round(b,2)}",
+    )
+)
+props = dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+plt.text(0.6, 0.20, textstr, transform=axes.transAxes,
+          verticalalignment='top', bbox=props, fontsize=fontsize-5)
+
+plt.plot(np.arange(8), np.arange(8)*a+b, color='g',linewidth=3)
+
+cb = plt.colorbar(m)
+cb.ax.tick_params(labelsize=fontsize)
+cb.set_label(label='Occurrence', fontsize=fontsize-5)
+
+axes.set_aspect('auto')
+plt.xticks(np.arange(0, xbin.max(), 1))
+
+plt.xlim([xbin.min(), xbin.max()])
+
+plt.ylim(ybin.min(), ybin.max())
+plt.ylabel( 'CHIMERE' , fontsize=fontsize)
+
+plt.yticks(np.arange(ybin.min(),ybin.max()), fontsize=fontsize)
+plt.xticks(fontsize=fontsize)
+plt.grid()
+plt.xlabel('MODIS', fontsize=fontsize)
+#plt.suptitle('Bias (AOD difference model-MODIS)')
+plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
+#plt.savefig("raw_all_chimere.jpg")
+
+def plot_median_diff_map(lon, lat, data1, data2, cmap="bwr", vmin=-.40, vmax=.4):
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(projection=ccrs.PlateCarree())
+    im = plt.pcolormesh(lon,lat, np.nanmedian(data1-data2,axis=0), cmap=cmap, vmin=vmin, vmax=vmax)
+    ax.coastlines()
+    plt.title(f"AOD median bias corrected-MODIS", fontsize=fontsize)
+    cb = plt.colorbar(im, fraction=0.016)
+    cb.ax.tick_params(labelsize=fontsize)
+    ax, txt = set_metrics_str(ax, data2, data1, fontsize=fontsize )
+    plt.ylim([10, lat.max()])
+    plt.xlim([lon.min(), lon.max()])
+
+    gl = im.axes.gridlines(draw_labels=True)
+    gl.top_labels, gl.ylabels_right = False, False
+    gl.xlabel_style, gl.ylabel_style = {'fontsize': fontsize}, {'fontsize': fontsize}
+
+    plt.text(10,5,f" {model_type}", fontsize=fontsize)
+
+def plot_date(date, model):
+    vmin=0.0 ; vmax=1.0 ; cbar_norm='lin'
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10,10), subplot_kw={'projection': projection}, constrained_layout=True)
+
+    dataset00 = input_layer_valid[input_layer_valid['date'] == date]
+
+    prediction = model.predict(dataset00.iloc[:,2:-2]).reshape(dataset00.shape[0],1)
+    scatter_plot2(axes[0], dataset00.lon, dataset00.lat, dataset00.aod_550, vmin=vmin, vmax=vmax, title="Raw CHIMERE", norm=cbar_norm)
+    scatter_plot2(axes[1], dataset00.lon, dataset00.lat, prediction[:,0], vmin=vmin, vmax=vmax, title="ML-Corrected CHIMERE", norm=cbar_norm)
+    scatter_plot2(axes[2], dataset00.lon, dataset00.lat, dataset00.MODIS, vmin=vmin, vmax=vmax, title=f"MODIS AQUA", norm=cbar_norm)
+    
+    plt.suptitle(model_type + " "+  date)
+
+def scatter_plot2(ax, x, y, z, vmin=0, vmax=5, cmap="YlOrBr", title=None, norm=None, **kwargs):
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LogNorm, PowerNorm
+
+    if norm in ['lin', None] :
+        im = ax.axes.scatter(x, y, 5, z, marker='s', vmin=vmin, vmax=vmax, cmap=cmap)
+    elif norm == 'sqrt' :
+        im = ax.axes.scatter(x, y, 5, z, marker='s', cmap=cmap, norm=PowerNorm(vmin=vmin, vmax=vmax, gamma=0.5))
+    elif norm == 'log' :
+        im = ax.axes.scatter(x, y, 5, z, marker='s', cmap=cmap, norm=LogNorm(vmin=vmin, vmax=vmax))
+    cbar = plt.colorbar(im, ax=ax, fraction=0.06)
+    cbar.ax.tick_params(labelsize=10)
+    ax.axes.set_title(title, fontsize=20)
+    ax.coastlines()
+    ax.set_ylim([10, y.max()])
+    ax.set_xlim([x.min(), x.max()])
+
+    gl = im.axes.gridlines(draw_labels=True)
+    gl.top_labels, gl.ylabels_right = False, False
+    gl.xlabel_style, gl.ylabel_style = {'fontsize': fontsize}, {'fontsize': fontsize}
+
+# plots for each date
+######## Choose the model : NN, XGB, RF or MLR ##########
+model_types = ["MLR", "NN", "RF", "XGB"]
+######################
+
+for model_type in model_types :
+    figpath=f"./figures/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    
+    if model_type == "NN" :
+        model = tf.keras.models.load_model(f"{output_path}/{model_type}")
+    else :
+        model = pickle.load(open(f'{output_path}/{model_type}.pkl', 'rb'))
+ 
+
+    #prediction[model_type] = model.predict(DTest.iloc[:,2:-2]).flatten()
+    #biases[model_type] = prediction[model_type].flatten() - DTest.MODIS
+
+    config['model_type'] = model_type
+    # global figpath, which_inst, output_path
+    figpath=f"./figures/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    if not os.path.exists(figpath) : os.mkdir(figpath)
+    if not os.path.exists(output_path) : os.mkdir(output_path)
+
+    #valid_dates= count_days("20211220", "20211231", "%Y%m%d") + count_days("20210510", "20210520", "%Y%m%d")# to do save prediction file
+    #dates = ["20210225"]
+    log_reference, log_prediction, inference_cost = plot_dates(config['train_dates']+config['valid_dates'], model, None, do_plot=True, save_output=True)
+    cost = inference_cost.sum()
+    ## MODEL INFO
+    f = open(f'{figpath}/config_{test_n}.yaml', 'w+')
+    yaml.dump(config, f, allow_unicode=True)
+    yaml.dump(
+        {
+            "model_type": model_type,
+            "valid_dates" : valid_dates,
+            "train_dates" : train_dates,
+            "Daily_average_CHIMERE.raw_vs_MODIS":float(np.sum(log_reference.values)/len(valid_dates)),
+            "Daily_average_testing_score":float(np.sum(log_prediction.values)/len(valid_dates)),
+            "train_cost_minutes":np.float(cost),
+            "Daily_average_prediction_cost_minutes":float(np.sum(inference_cost)/60/len(valid_dates)),
+            "figpath":figpath,
+            "output_path":output_path,
+        }, f, default_flow_style=False)
+
+ # plots for each date
+######## Choose the model : NN, XGB, RF or MLR ##########
+model_types = ["MLR", "NN", "RF", "XGB"]
+######################
+
+for model_type in model_types :
+    figpath=f"./figures/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    
+    if model_type == "NN" :
+        model = tf.keras.models.load_model(f"{output_path}/{model_type}")
+    else :
+        model = pickle.load(open(f'{output_path}/{model_type}.pkl', 'rb'))
+ 
+   
+    a = []
+    b = []
+    c = []
+    for date in config['train_dates']+config['valid_dates'] :
+        chim_ds = xr.open_dataset(f"{output_path}/out.{date}00_01.nc")
+        modis_ds = xr.open_dataset(f"./data/{config['region']}/MODIS/regrided_MODIS_AQUA_AOD_550_{date}_0.45.nc")
+        o = modis_ds.lat>10 # limit the domain for north africa
+        a.append(chim_ds['optdaero_550.0_corr'].data)   
+        c.append(chim_ds['optdaero_550.0'].data)    
+        b.append(modis_ds.AOD_550_Dark_Target_Deep_Blue_Combined.where(o).data[37:,:]) # limit the domain for north africa
+        chim_corr = np.asarray(np.squeeze(a))
+        modis_aod = np.asarray(b)
+        chim_aod = np.asarray(np.squeeze(c))
+        
+    if model_type == "MLR" :
+        plot_median_diff_map(chim_ds.lon, chim_ds.lat, chim_aod, modis_aod)
+    
+    plot_median_diff_map(chim_ds.lon, chim_ds.lat, chim_corr, modis_aod)
+    
+    ######## Which date ########
+    date = "20210930" # from config['train_dates'] or config['valid_dates']
+
+    # Plot the figures
+    plot_date(date, model)
+
+#a = input_layer_valid[input_layer_valid['date'] == date]
+#print(a)
+
+print("全部OK")
