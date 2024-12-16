@@ -1291,7 +1291,11 @@ for i, model  in enumerate(biases.columns) :
                                         bins=[xbin, ybin])
     print('done')
 
-    m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin=1, vmax=3000)
+    norm = matplotlib.colors.LogNorm()
+    vmin = 1
+    vmax = 3000
+    # ここでエラー(pcolormeshの使い方)
+    m = plt.pcolormesh(X, Y, a.statistic.T, norm, cmap='magma', vmin = 1, vmax = vmax)
     a,b = np.polyfit(DTest.aod_550, biases[model], 1)
     textstr = '\n'.join((
         
