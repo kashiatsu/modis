@@ -63,6 +63,7 @@ variables["var_2d_ch"] = ["albedo","swrd","soim","sreh", "hght","slhf","sshf"] #
 #variables["var_2d_ch"] = ["lon", "lat", "optdaero_550.0", "hght", "albedo","tem2","u10m","v10m"] # deepencoder & random forest
 
 #variables["var_2d_ch"] = ['lon', 'lat', 'optdaero_550.0', 'pblh', 'usta', 'wsta', 'tem2', 'v10m', 'u10m', 'ws10m']
+
 #variables["var_3d_ch"] = ['PM10', 'PM25', 'temp', 'winm', 'winw', 'pres']
 #variables["var_3d_ch"] = ['PM10', 'temp', 'pres'] #'winm', 'winw', 'pres']
 
@@ -99,6 +100,8 @@ variables["var_3d_ch"] =  ["pres","relh","ROOH","HCNM","pSALT","pH2SO4","pHNO3",
 
 #variables["var_3d_ch"] = []
 
+
+
 which_inst = "AQUA"
 config = {
     "wv" : "550.0", #200 300 400 600 999
@@ -124,7 +127,9 @@ for month in range(1,13,1) :
     train_dates = train_dates + count_days(f'2021{str.zfill(str(month),2)}01',f'2021{str.zfill(str(month),2)}20','%Y%m%d')
 
 tmp_dates = count_days('20210101','20211231','%Y%m%d')
+print("tmp_dates: \n", tmp_dates)
 
+# 欠損値を持つ日の削除
 for d in train_dates + ["20210923", "20210925", "20210924"] : #, "20211014"] # no modis on 23-25 Sep 2021
     tmp_dates.remove(d)
 valid_dates = tmp_dates
@@ -175,7 +180,10 @@ dataset.insert(input_layer_train.shape[1], value=reference_layer_train.iloc[:,2]
 
 print("\nCoincident CHIMERE/MODIS data")
 print("\nInput layer train", input_layer_train.shape)
+print("input: \n", input_layer_train)
 print("\nReference layer train", reference_layer_train.shape)
+print("reference: \n", reference_layer_train)
+print("dataset: ", dataset.shape)
 print("\n")
 
 # The rest of the days (CHIMERE data without coincidence with MODIS)
@@ -252,7 +260,15 @@ pickle.dump(reference_layer_valid, open(f"./models/{config['region']}/reference_
 # Removing the equator region coz of low fire emissions issue
 dataset = dataset[dataset.lat>10]
 #### llllllllllllllllllllll Remove lon lat lllllllllllllllllll
-dataset = dataset.iloc[:,2:]
+
+# 緯度経度のデータを削除する前に別のファイルに保存する
+# それ用のpythonファイル作る
+print("dataset: \n", dataset.iloc[1])
+#緯度経度のデータが入ったデータセット
+pickle.dump(dataset, open('dataset_lon_rat.pkl', 'wb')) 
+dataset = pickle.load(open('dataset_lon_rat.pkl', 'rb'))
+
+# dataset = dataset.iloc[:,2:]
 
 # #Remove MODIS pixels that are AOD limited to 3.5
 # idx0 = (dataset.MODIS < 3.45) | (dataset.MODIS > 3.51)
@@ -264,6 +280,7 @@ dataset = dataset.iloc[:,2:]
 # Train/test data splitting
 dataset = dataset.sample(frac=1, random_state=3214)
 halfsiz = int(dataset.index.size/2)
+
 
 #x_train, y_train = dataset.iloc[:halfsiz,:-1].values, dataset.iloc[:halfsiz,-1].values.reshape(-1,1)
 #x_test, y_test = dataset.iloc[halfsiz:,:-1].values, dataset.iloc[halfsiz:,-1].values.reshape(-1,1)
@@ -295,7 +312,14 @@ def normalize_data(X_train, X_test):
 
 x_train, x_test = normalize_data(x_train, x_test)
 
+
+
+
+
 ## Random forest
+
+print("random forest")
+
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.ensemble import RandomForestRegressor
 
@@ -429,17 +453,8 @@ plt.bar(dataset.columns[:-1][idx], model.feature_importances_[idx])
 plt.yscale('log')
 _ = plt.xticks(rotation=45)
 ax.tick_params(axis='both', which='major', labelsize=20)
-plt.savefig("rf_features_importance.jpg", dpi=100, pad_inches=12)
+plt.savefig("rf_features_importance.jpg", dpi=100, bbox_inches='tight', pad_inches=1)
 
-idx = np.where(model.feature_importances_> 0.02)
-
-fig, ax = plt.subplots(figsize=(10,5))
-plt.bar(dataset.columns[:-1][idx], model.feature_importances_[idx])
-
-plt.yscale('log')
-_ = plt.xticks(rotation=45)
-ax.tick_params(axis='both', which='major', labelsize=20)
-plt.savefig("rf_features_importance.jpg", dpi=100, pad_inches=12)
 
 prediction = model.predict(x_test)
 print(x_test.shape)
@@ -484,3 +499,10 @@ pickle.dump(model, open(f'{output_path}/{model_type}.pkl', 'wb'))
 #metrics_list.append(metrics)
 #print(pd.DataFrame.from_dict(metrics_list))
 #plt.close()
+
+## Random Forest finishing
+
+
+
+
+## Neural network
