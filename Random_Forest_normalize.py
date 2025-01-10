@@ -268,7 +268,34 @@ print("dataset: \n", dataset.iloc[1])
 pickle.dump(dataset, open('dataset_lon_rat.pkl', 'wb')) 
 dataset = pickle.load(open('dataset_lon_rat.pkl', 'rb'))
 
-# dataset = dataset.iloc[:,2:]
+print("date: ", dataset[:, 'date' == 20210101])
+
+new_dataset = pd.DataFrame() # 空のデータセット作成
+    
+for i in dataset:
+  x = dataset['date' == i].iloc['lon'] # 緯度
+  y = dataset['date' == i].iloc['lat'] # 経度
+  
+  for j in dataset['date' == i]:
+    if dataset['date' == i].iloc['lon'] == x - 0.45 or dataset['date' == i].iloc[lon] == x or dataset['date' == i].iloc[lon] == x + 0.45:
+      for k in dataset['date' == i]['lon' == j]:
+        if dataset['date' == i]['lon' == j].iloc['lat'] == y - 0.45 or dataset['date' == i]['lon' == j].iloc['lat'] == y or dataset['date' == i]['lon' == j].iloc['lat'] == y + 0.45:
+          new_dataset.append(dataset['date' == i]['lon' == j]['lat' == k])
+          print("new_dataset: \n", new_dataset)
+          
+
+
+# dataset = dataset.iloc[:,2:] 緯度経度のデータを削除
+print("dataset: \n", dataset.shape)
+print("dataset: \n", dataset.columns)
+print("dataset: \n", dataset)
+assert False
+
+# 行列を変更する
+# 1. 同じ日のあるポイントの周辺(0.45の範囲)
+# 2. 欠損値は0ベクトルで(角とか)
+# 3. dateはダブルから一つだけ
+# 別のファイルで作る
 
 # #Remove MODIS pixels that are AOD limited to 3.5
 # idx0 = (dataset.MODIS < 3.45) | (dataset.MODIS > 3.51)
