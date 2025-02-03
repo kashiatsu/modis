@@ -142,7 +142,7 @@ print(len(train_dates), len(valid_dates), len(all_dates) )
 config['train_dates'] = train_dates
 config['valid_dates'] = valid_dates
 
-output_path0 = f'./models/{config["region"]}/'
+output_path0 = f'./new_models/{config["region"]}/'
 if not os.path.exists(output_path0) : os.mkdir(output_path0)
 
 # SAVE CONFIG
@@ -245,21 +245,39 @@ dataset_valid = input_layer_valid
 # Saving input_layer and reference_layer
 import pickle
 
-output_path0 = f"./models/{config['region']}/"
+output_path0 = f"./new_models/{config['region']}/"
 if not os.path.exists(output_path0) : os.mkdir(output_path0)
 
-pickle.dump(input_layer_train, open(f"./models/{config['region']}/input_layer_train_{config['test_n']}.pkl", 'wb'))
-pickle.dump(reference_layer_train, open(f"./models/{config['region']}/reference_layer_train_{config['test_n']}.pkl", 'wb'))
+pickle.dump(input_layer_train, open(f"./new_models/{config['region']}/input_layer_train_{config['test_n']}.pkl", 'wb'))
+pickle.dump(reference_layer_train, open(f"./new_models/{config['region']}/reference_layer_train_{config['test_n']}.pkl", 'wb'))
 
-pickle.dump(input_layer_valid, open(f"./models/{config['region']}/input_layer_valid_{config['test_n']}.pkl", 'wb'))
-pickle.dump(reference_layer_valid, open(f"./models/{config['region']}/reference_layer_valid_{config['test_n']}.pkl", 'wb'))
+pickle.dump(input_layer_valid, open(f"./new_models/{config['region']}/input_layer_valid_{config['test_n']}.pkl", 'wb'))
+pickle.dump(reference_layer_valid, open(f"./new_models/{config['region']}/reference_layer_valid_{config['test_n']}.pkl", 'wb'))
 
-#input_layer_train = pickle.load(open(f"./models/{config['region']}/input_layer_train_{config['test_n']}.pkl", 'rb'))
-#reference_layer_train = pickle.load(open(f"./models/{config['region']}/reference_layer_train_{config['test_n']}.pkl", 'rb'))
+#input_layer_train = pickle.load(open(f"./new_models/{config['region']}/input_layer_train_{config['test_n']}.pkl", 'rb'))
+#reference_layer_train = pickle.load(open(f"./new_models/{config['region']}/reference_layer_train_{config['test_n']}.pkl", 'rb'))
 
 # Removing the equator region coz of low fire emissions issue
 dataset = dataset[dataset.lat>10]
 #### llllllllllllllllllllll Remove lon lat lllllllllllllllllll
+dataset_columns = dataset.columns.values # datasetのカラム名のリスト
+print("column: \n", dataset_columns)
+head_dataset_columns = dataset_columns
+dataset_columns = np.delete(dataset_columns, 90)
+
+print("removing dataset columns", len(dataset_columns))
+print("head: ", len(head_dataset_columns))
+# head_dataset_columns = head_dataset_columns.reshape([1, 91])
+# dataset_columns = dataset_columns.reshape([1, 90]) # dataset_D を(0, 90)から(1, 90)にする
+
+# 新しいデータセットのカラム名のリスト
+
+for i in range(8):
+    head_dataset_columns = np.concatenate([head_dataset_columns, dataset_columns])
+    
+    
+new_dataset_columns = head_dataset_columns
+print("new_dataset_columns_len: ", len(new_dataset_columns))
 
 
 
@@ -518,7 +536,7 @@ dataset_valid = pickle.load(open('new_dataset_valid_Spatial_Correlation.pkl', 'r
 
 # dataset = dataset.iloc[:,2:] 緯度経度のデータを削除
 
-dataset = pd.DataFrame(dataset, column = "MODIS") # numpyからdataframeに戻す
+dataset = pd.DataFrame(dataset, columns = new_dataset_columns) # numpyからdataframeに戻す
 print("dataset: \n", dataset.shape)
 print("dataset: \n", dataset.columns)
 print("dataset: \n", dataset)
@@ -556,8 +574,8 @@ input_layer = dataset.iloc[:,:-1].values; reference_layer = dataset.iloc[:,-1].v
 DTrain = dataset.iloc[:halfsiz,:]
 DTest = dataset.iloc[halfsiz:,:]
 
-pickle.dump(DTrain, open(f"./models/{config['region']}/DTrain_{config['test_n']}.pkl", 'wb'))
-pickle.dump(DTest, open(f"./models/{config['region']}/DTest_{config['test_n']}.pkl", 'wb'))
+pickle.dump(DTrain, open(f"./new_models/{config['region']}/DTrain_{config['test_n']}.pkl", 'wb'))
+pickle.dump(DTest, open(f"./new_models/{config['region']}/DTest_{config['test_n']}.pkl", 'wb'))
 
 # データを正規化する(まずはfeature vectorだけ)
 def normalize_data(X_train, X_test):
@@ -723,7 +741,7 @@ print(f'RF validation MAE = {MAE}')
 model_type = "RF"
 # global figpath, which_inst, output_path
 figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
 if not os.path.exists(figpath) : os.mkdir(figpath)
 if not os.path.exists(output_path) : os.mkdir(output_path)
 
@@ -999,7 +1017,7 @@ plt.bar(dataset.columns[:-1][idx], np.asarray(model.weights[0])[idx])
 #plt.yscale('log')
 _ = plt.xticks(rotation=45)
 ax.tick_params(axis='both', which='major', labelsize=20)
-#plt.savefig("nn_features_importance.jpg", dpi=100, pad_inches=12)
+plt.savefig("nn_features_importance.jpg", dpi=100, pad_inches=12)
 
 prediction = model.predict(x_test)
 print(x_test.shape)
@@ -1009,8 +1027,8 @@ print(f'NN validation MAE = {MAE}')
 model_type = "NN"
 # global figpath, which_inst, output_path
 figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
-output_path2 = f"./models/{config['region']}/{model_type}/{str(test_n)}/{model_type}"
+output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
+output_path2 = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/{model_type}"
 if not os.path.exists(figpath) : os.mkdir(figpath)
 if not os.path.exists(output_path) : os.mkdir(output_path)
 if not os.path.exists(output_path2) : os.mkdir(output_path2)
@@ -1065,7 +1083,7 @@ print("XGB")
 
 #model = tpot
 
-#pickle.dump(model, open(f'data/models/XGB0.pkl', 'wb'))
+#pickle.dump(model, open(f'data/new_models/XGB0.pkl', 'wb'))
 
 model_type = 'tpot'
 import numpy as np
@@ -1108,7 +1126,7 @@ print(f'XGB validation MAE = {MAE}')
 model_type = "XGB"
 # global figpath, which_inst, output_path
 figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
 if not os.path.exists(figpath) : os.mkdir(figpath)
 if not os.path.exists(output_path) : os.mkdir(output_path)
 
@@ -1148,7 +1166,7 @@ print(f'MLR validation MAE = {MAE}')
 model_type = "MLR"
 # global figpath, which_inst, output_path
 figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
 if not os.path.exists(figpath) : os.mkdir(figpath)
 if not os.path.exists(output_path) : os.mkdir(output_path)
 
@@ -1422,10 +1440,10 @@ plt.style.use('default')
 import warnings;  warnings.filterwarnings('ignore')
 fontsize=20
 
-DTest = pickle.load(open(f"./models/{config['region']}/DTest_{config['test_n']}.pkl", 'rb'))
+DTest = pickle.load(open(f"./new_models/{config['region']}/DTest_{config['test_n']}.pkl", 'rb'))
 DTest = DTest[~DTest.MODIS.isna()]
 
-DTrain = pickle.load(open(f"./models/{config['region']}/DTrain_{config['test_n']}.pkl", 'rb'))
+DTrain = pickle.load(open(f"./new_models/{config['region']}/DTrain_{config['test_n']}.pkl", 'rb'))
 DTrain = DTrain[~DTrain.MODIS.isna()]
 
 dataset0 = pd.concat([DTrain, DTest], axis=0)
@@ -1468,7 +1486,7 @@ biases["RAW"] = (DTest.aod_550.values- DTest.MODIS)/ DTest.MODIS
 for model_type in model_types :
 
     figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
     
     if model_type == "NN" :
         model = tf.keras.models.load_model(f"{output_path}/{model_type}")
@@ -1492,7 +1510,7 @@ biases["RAW"] = DTest.aod_550.values- DTest.MODIS
 
 for model_type in model_types :
     figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
     
     if model_type == "NN" :
         model = tf.keras.models.load_model(f"{output_path}/{model_type}")
@@ -1536,7 +1554,7 @@ plt.grid()
 plt.xlabel("Bias")
 plt.ylabel("Occurrence")
 
-#plt.savefig("correction_bias.jpg")
+plt.savefig("correction_bias.jpg")
 
 biases.describe()
 d = pd.concat([biases, DTest.MODIS], axis=1, names=['RAW', 'MLR','NN', 'RF', 'XGB', 'MODIS'])
@@ -1559,11 +1577,11 @@ for i, model  in enumerate(biases.columns) :
                                         bins=[xbin, ybin])
     print('done')
 
-    norm = matplotlib.colors.LogNorm()
+    # norm = matplotlib.colors.LogNorm()
     vmin = 1
     vmax = 3000
     # ここでエラー(pcolormeshの使い方, また今度)
-    m = plt.pcolormesh(X, Y, a.statistic.T, norm, cmap='magma', vmin = 1, vmax = 3000)
+    m = plt.pcolormesh(X, Y, a.statistic.T, norm=matplotlib.colors.LogNorm(), cmap='magma', vmin = 1, vmax = 3000)
     a,b = np.polyfit(DTest.aod_550, biases[model], 1)
     textstr = '\n'.join((
         
@@ -1595,9 +1613,9 @@ for i, model  in enumerate(biases.columns) :
     plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
 
     figpath=f"./new_figures/{config['region']}/{model}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model}/"
+    output_path = f"./new_models/{config['region']}/{model}/"
     if not os.path.exists(output_path) : os.mkdir(output_path)
-    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model}/{str(test_n)}/"
     if not os.path.exists(output_path) : os.mkdir(output_path)
     
     plt.savefig(f'{output_path}/{model}_biases_vs_chim.png', dpi=100)
@@ -1653,7 +1671,7 @@ plt.bar(corr1.index[71:], corr1.values[71:])
 #plt.xlabel('CHIMERE AOD', fontsize=fontsize)
 ##plt.suptitle('Bias (AOD difference model-MODIS)')
 #plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
-##plt.savefig("raw_all_chimere.jpg")
+#plt.savefig("raw_all_chimere.jpg")
 
 print("ここまでOK30")
 
@@ -1710,7 +1728,7 @@ for i, model  in enumerate(prediction.keys()) :
     plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
     
     figpath=f"./new_figures/{config['region']}/{model}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model}/{str(test_n)}/"
      
     plt.savefig(f'{output_path}/{model}_biases_vs_modis.png', dpi=100)
     plt.close()
@@ -1768,7 +1786,7 @@ for i, model  in enumerate(prediction.keys()) :
     plt.gcf().subplots_adjust(bottom=0.17, left=0.23)
 
     figpath=f"./new_figures/{config['region']}/{model}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model}/{str(test_n)}/"
     
     plt.savefig(f'{output_path}/{model}_prediction_vs_modis.png', dpi=100)
     plt.close()
@@ -1930,7 +1948,7 @@ model_types = ["MLR", "NN", "RF", "XGB"]
 
 for model_type in model_types :
     figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
     
     if model_type == "NN" :
         model = tf.keras.models.load_model(f"{output_path}/{model_type}")
@@ -1944,7 +1962,7 @@ for model_type in model_types :
     config['model_type'] = model_type
     # global figpath, which_inst, output_path
     figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
     if not os.path.exists(figpath) : os.mkdir(figpath)
     if not os.path.exists(output_path) : os.mkdir(output_path)
 
@@ -1975,7 +1993,7 @@ model_types = ["MLR", "NN", "RF", "XGB"]
 
 for model_type in model_types :
     figpath=f"./new_figures/{config['region']}/{model_type}/{str(test_n)}/"
-    output_path = f"./models/{config['region']}/{model_type}/{str(test_n)}/"
+    output_path = f"./new_models/{config['region']}/{model_type}/{str(test_n)}/"
     
     if model_type == "NN" :
         model = tf.keras.models.load_model(f"{output_path}/{model_type}")
